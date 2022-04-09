@@ -1,19 +1,23 @@
 import isObject from "../isObject.js";
 
-const getWalk = (object, key, level = 0) => {
+const getWalk = (key, object, objectKey, level = 0, workLevel = 0) => {
   const ia = Array.isArray(object);
   const io = isObject(object);
   let walk;
   let nextLevel = level;
-  if (key) {
+  if (workLevel === level) {
+    walk = [[objectKey, object]];
+  } else if (workLevel === level + 1) {
     nextLevel += 1;
-    walk = [[key, io ? object[key] : undefined]];
-  } else if (ia) {
-    nextLevel += 1;
-    walk = object.entries();
-  } else if (io) {
-    nextLevel += 1;
-    walk = Object.entries(object);
+    if (key) {
+      walk = [[key, io ? object[key] : undefined]];
+    } else if (ia) {
+      walk = object.entries();
+    } else if (io) {
+      walk = Object.entries(object);
+    } else {
+      nextLevel = undefined;
+    }
   }
   return [walk, nextLevel];
 };

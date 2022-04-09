@@ -6,32 +6,34 @@
  * @returns {Array} Returns the property path array.
  */
 function stringToSPath(string) {
-  const path = []
-  const parrents = new Map()
-  let current = path
-  for (const [, key, op] of string.matchAll(/(.*?)([\.\[\]:!\?]|$)/g)) {
-    const sub = [key, op]
-    current.push(sub)
+  const path = [];
+  const parrents = new Map();
+  let current = path;
+  for (const [, key, op] of string.matchAll(
+    /(.*?)(>=|<=|[\.\[\]:!\?%><]|$)/g
+  )) {
+    const sub = [key, op];
+    if (!key && !op) continue;
+    current.push(sub);
     switch (op) {
-      case '[': {
-        parrents.set(sub, current)
-        current = sub
-        break
+      case "[": {
+        parrents.set(sub, current);
+        current = sub;
+        break;
       }
-      case ']': {
-        if (!parrents.has(current)) {
-          throw new SyntaxError('Unexpected symbol "["')
+      case "]": {
+        if (parrents.has(current)) {
+          const prev = current;
+          current = parrents.get(prev);
+          parrents.delete(prev);
         }
-        const prev = current
-        current = parrents.get(prev)
-        parrents.delete(prev)
-        break
+        break;
       }
-      case '.':
+      case ".":
       default:
-        break
+        break;
     }
   }
-  return path
+  return path;
 }
-export default stringToSPath
+export default stringToSPath;

@@ -2,6 +2,10 @@
 import isObject from "./isObject.js";
 import castSPath from "./.internal/castSPath.js";
 import getWalk from "./.internal/sgetWalk.js";
+import getNewRoot from "./.internal/sgetNewRoot.js";
+import getWorkLevel from "./.internal/sgetWorkLevel.js";
+
+const CONTROL_OPS = [".", "[", "]"];
 
 function sget(object, spathValue, defaultValue, pos = 0) {
   let current;
@@ -29,37 +33,41 @@ function sget(object, spathValue, defaultValue, pos = 0) {
       nextRoot = current;
       nextRootKey = currentKey;
       if (newRootLevel < 1) {
-        newRoot = {};
+        newRoot = getNewRoot(newRoot);
         newRootLevel = 1;
       }
     }
 
     let bracket = spath.length ? spath[spath.length - 1][1] === "]" : false;
-    let wrap = false;
 
     if (
       bracket &&
-      currentLevel >= 1 &&
-      nextRootKey &&
+      newRootLevel >= 1 &&
+      nextRootKey !== undefined &&
       nextRoot !== undefined &&
       newRoot[nextRootKey] === nextRoot
     ) {
+      current = newRoot;
+      currentKey = undefined;
+      currentLevel = 0;
       continue;
     }
 
     for (let npos = 0; npos < spath.length; npos += 1) {
       const [key, op, ...sub] = spath[npos];
-      const workLevel = level + npos + 1;
+      const workLevel = getWorkLevel(level, npos, spath); // level + npos + 1;
 
       if (key === "" && (!op || op === "]") && level + npos === 0) {
         break;
       }
 
-      if (wrap && currentKey) {
-        current = { [currentKey]: current };
-        currentLevel -= 1;
-      }
-      let [walk, nextLevel] = getWalk(current, key, currentLevel);
+      let [walk, nextLevel] = getWalk(
+        key,
+        current,
+        currentKey,
+        currentLevel,
+        workLevel
+      );
       current = undefined;
       currentLevel = undefined;
       currentKey = undefined;
@@ -68,26 +76,33 @@ function sget(object, spathValue, defaultValue, pos = 0) {
         let nextKey;
 
         for (let [nextKey, next] of walk) {
-          if (nextLevel === 1) {
+          if (nextLevel === 1 && current === undefined) {
             nextRoot = next;
             nextRootKey = nextKey;
             if (newRootLevel < 1) {
-              newRoot = {};
+              newRoot = getNewRoot(newRoot);
               newRootLevel = 1;
             }
           }
 
-          wrap = false;
+          if (
+            bracket &&
+            newRootLevel >= 1 &&
+            nextRootKey !== undefined &&
+            nextRoot !== undefined &&
+            newRoot[nextRootKey] === nextRoot
+          ) {
+            current = newRoot;
+            currentKey = undefined;
+            currentLevel = 0;
+            break;
+          }
+
           if (nextLevel === workLevel) {
-            switch (op) {
-              case ".":
-                break;
-              case "[": {
-                const [, nextOp = "", ...nextSub] = spath[npos + 1] || [];
+            if (CONTROL_OPS.includes(op)) {
+              if (op === "[") {
                 next = sget(next, sub);
-                break;
-              }
-              case "]": {
+              } else if (op === "]") {
                 bracket = true;
                 const result = next;
                 next = newRoot;
@@ -96,22 +111,21 @@ function sget(object, spathValue, defaultValue, pos = 0) {
                   next[nextRootKey] = nextRoot;
                 }
                 nextLevel = 0;
-                break;
               }
-              case ":":
-              case "!":
-              case "?":
-              default: {
-                const right = spath
-                  .slice(npos + 1)
-                  .map(([k, o]) => `${k}${o !== "]" ? o : ""}`)
-                  .join("");
+            } else {
+              const right = spath
+                .slice(npos + 1)
+                .map(([k, o]) => `${k}${o !== "]" ? o : ""}`)
+                .join("");
 
-                spath.splice(npos + 1);
-                if (bracket) {
-                  spath.push(["", "]"]);
-                }
+              spath.splice(npos + 1);
+              if (bracket) {
+                spath.push(["", "]"]);
+              }
 
+              nextLevel += 1;
+
+              if (op) {
                 if (op === ":") {
                   next = right ? next == right : !!next;
                 }
@@ -121,11 +135,21 @@ function sget(object, spathValue, defaultValue, pos = 0) {
                 if (op === "?") {
                   next = next !== undefined;
                 }
-
-                nextLevel += 1;
-                wrap = true;
-
-                break;
+                if (op === ">") {
+                  next = `${next}` > right;
+                }
+                if (op === ">=") {
+                  next = `${next}` >= right;
+                }
+                if (op === "<") {
+                  next = `${next}` < right;
+                }
+                if (op === "<=") {
+                  next = `${next}` <= right;
+                }
+                if (op === "%") {
+                  next = next % right;
+                }
               }
             }
 
@@ -135,7 +159,7 @@ function sget(object, spathValue, defaultValue, pos = 0) {
                 currentKey = nextKey;
                 currentLevel = nextLevel;
               } else {
-                if (wrap && nextKey) {
+                if (nextLevel === workLevel + 1) {
                   next = { [nextKey]: next };
                   nextLevel -= 1;
                 }
