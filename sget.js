@@ -1,4 +1,4 @@
-/* eslint-disable no-labels, eqeqeq */
+/* eslint-disable eqeqeq */
 import isObject from "./isObject.js";
 import castSPath from "./.internal/castSPath.js";
 import getWalk from "./.internal/sgetWalk.js";
@@ -28,12 +28,26 @@ function sget(object, spathValue, defaultValue, pos = 0) {
     if (currentLevel === 1) {
       nextRoot = current;
       nextRootKey = currentKey;
+      if (newRootLevel < 1) {
+        newRoot = {};
+        newRootLevel = 1;
+      }
     }
 
-    let bracket = false;
+    let bracket = spath.length ? spath[spath.length - 1][1] === "]" : false;
     let wrap = false;
 
-    oploop: for (let npos = 0; npos < spath.length; npos += 1) {
+    if (
+      bracket &&
+      currentLevel >= 1 &&
+      nextRootKey &&
+      nextRoot !== undefined &&
+      newRoot[nextRootKey] === nextRoot
+    ) {
+      continue;
+    }
+
+    for (let npos = 0; npos < spath.length; npos += 1) {
       const [key, op, ...sub] = spath[npos];
       const workLevel = level + npos + 1;
 
@@ -57,10 +71,10 @@ function sget(object, spathValue, defaultValue, pos = 0) {
           if (nextLevel === 1) {
             nextRoot = next;
             nextRootKey = nextKey;
-          }
-          if (nextLevel > 0 && newRootLevel === 0) {
-            newRoot = {};
-            newRootLevel = 1;
+            if (newRootLevel < 1) {
+              newRoot = {};
+              newRootLevel = 1;
+            }
           }
 
           wrap = false;
@@ -88,13 +102,9 @@ function sget(object, spathValue, defaultValue, pos = 0) {
               case "!":
               case "?":
               default: {
-                bracket = false;
                 const right = spath
                   .slice(npos + 1)
-                  .map(([k, o]) => {
-                    if (o === "]") bracket = true;
-                    return `${k}${o !== "]" ? o : ""}`;
-                  })
+                  .map(([k, o]) => `${k}${o !== "]" ? o : ""}`)
                   .join("");
 
                 spath.splice(npos + 1);
