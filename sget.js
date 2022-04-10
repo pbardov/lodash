@@ -7,6 +7,26 @@ import getWorkLevel from "./.internal/sgetWorkLevel.js";
 
 const CONTROL_OPS = [".", "[", "]"];
 
+/**
+ * Gets the value at `path` of `object`. If the resolved value is
+ * `undefined`, the `defaultValue` is returned in its place.
+ *
+ * @category Object
+ * @param {Object|Array} object The object to query.
+ * @param {Array|string} path The path of the property to get.
+ * @param {*} [defaultValue] The value returned for `undefined` resolved values.
+ * @returns {*} Returns the resolved value.
+ * @see has, hasIn, set, unset
+ * @example
+ *
+ * const object = [{ key: { index: 0 } }, { key: { index: 1 } }, { key: { index: 3 } }]
+ *
+ * sget(object, '[.key.index>0].key.index')
+ * // => 1
+ *
+ * sget(object, '[.key.index:4]', 'default')
+ * // => 'default'
+ */
 function sget(object, spathValue, defaultValue, pos = 0) {
   let current;
   let currentKey;
